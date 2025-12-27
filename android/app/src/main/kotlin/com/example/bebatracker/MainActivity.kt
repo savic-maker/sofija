@@ -1,4 +1,4 @@
-package com.example.bebatracker
+package com.sofija.tracker
 
 import io.flutter.embedding.android.FlutterActivity
 
