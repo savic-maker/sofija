@@ -1,15 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Internet permission is optional. Keep it only if you need it. -->
-    <!-- <uses-permission android:name="android.permission.INTERNET" /> -->
-
     <application
         android:label="Sofija Tracker"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 
-        <!-- REQUIRED for Flutter Android v2 embedding -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
@@ -23,7 +19,6 @@
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
 
-            <!-- Flutter uses this theme after launch -->
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
@@ -33,11 +28,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- Needed for Flutter tooling -->
-        <meta-data
-            android:name="flutterEmbedding"
-            android:value="2" />
 
     </application>
 </manifest>
