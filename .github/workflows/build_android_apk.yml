@@ -28,6 +28,9 @@ jobs:
           ls -la
           test -f pubspec.yaml || (echo "pubspec.yaml NOT FOUND" && exit 1)
 
+      - name: Clean
+        run: flutter clean
+
       - name: Flutter pub get
         run: flutter pub get
 
@@ -37,11 +40,19 @@ jobs:
       - name: Generate native splash
         run: flutter pub run flutter_native_splash:create
 
-      - name: Build release APK
-        run: flutter build apk --release
+      - name: Build release APK (verbose)
+        run: flutter build apk --release -v
+
+      - name: List APK outputs (debug)
+        if: always()
+        run: |
+          echo "=== build/app/outputs ==="
+          find build/app/outputs -maxdepth 5 -type f || true
+          echo "=== flutter-apk folder ==="
+          ls -la build/app/outputs/flutter-apk || true
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/*.apk
