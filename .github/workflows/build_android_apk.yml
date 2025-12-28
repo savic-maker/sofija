@@ -2,22 +2,28 @@ name: Build Android APK
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ "main" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      # Sprečava "Already watching path" / duplo posmatranje foldera u CI
+      GRADLE_OPTS: "-Dorg.gradle.vfs.watch=false -Dorg.gradle.daemon=false"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Flutter
+      - name: Set up Flutter (stable)
         uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -25,64 +31,58 @@ jobs:
 
       - name: Verify project structure
         run: |
-          set -e
+          echo "=== Repo root ==="
           ls -la
-          test -f pubspec.yaml
+          test -f pubspec.yaml || (echo "pubspec.yaml NOT FOUND in repo root" && exit 1)
+          echo "=== android ==="
+          ls -la android || true
+          echo "=== android/app ==="
+          ls -la android/app || true
+
+      - name: Create android/local.properties for CI
+        run: |
+          mkdir -p android
+          echo "flutter.sdk=${FLUTTER_ROOT}" > android/local.properties
+          echo "sdk.dir=${ANDROID_SDK_ROOT}" >> android/local.properties
+          cat android/local.properties
 
       - name: Flutter pub get
         run: flutter pub get
 
-      # Ako nemaš ikonice/splash assete u repu, ova 2 koraka mogu da failuju.
-      # Ako si ih sredio – ostavi. Ako opet pravi problem – privremeno komentariši ova 2 koraka.
-      - name: Generate app icons
-        run: flutter pub run flutter_launcher_icons:main
-
-      - name: Generate native splash
-        run: flutter pub run flutter_native_splash:create
-
-      - name: Prepare Android local.properties and disable Gradle watcher
+      - name: Generate app icons (only if config exists)
         run: |
-          set -e
-          FLUTTER_ROOT="$(dirname "$(dirname "$(which flutter)")")"
-          echo "Detected FLUTTER_ROOT=$FLUTTER_ROOT"
-
-          mkdir -p android
-          # local.properties je potreban Gradle-u da zna gde je Flutter SDK
-          cat > android/local.properties <<EOF
-flutter.sdk=$FLUTTER_ROOT
-sdk.dir=$ANDROID_SDK_ROOT
-EOF
-
-          # Isključi Gradle file system watcher (rešava "Already watching path...")
-          mkdir -p android
-          if [ -f android/gradle.properties ]; then
-            grep -q "org.gradle.vfs.watch" android/gradle.properties || echo "org.gradle.vfs.watch=false" >> android/gradle.properties
+          if grep -q "flutter_launcher_icons" pubspec.yaml; then
+            flutter pub run flutter_launcher_icons:main
           else
-            echo "org.gradle.vfs.watch=false" > android/gradle.properties
+            echo "flutter_launcher_icons not configured - skipping"
           fi
 
-      - name: Build release APK (Gradle)
+      - name: Generate native splash (only if config exists)
         run: |
-          set -e
-          cd android
-          ./gradlew --version
-          ./gradlew clean
-          ./gradlew :app:assembleRelease --stacktrace
+          if grep -q "flutter_native_splash" pubspec.yaml; then
+            flutter pub run flutter_native_splash:create
+          else
+            echo "flutter_native_splash not configured - skipping"
+          fi
 
-      - name: Locate APK (debug)
+      - name: Build release APK
         run: |
-          set -e
-          echo "=== APK candidates ==="
-          find . -type f -name "*.apk" -print || true
-          echo "=== Flutter default output folder (if exists) ==="
+          flutter --version
+          flutter build apk --release
+
+      - name: List APK outputs (debug)
+        if: always()
+        run: |
+          echo "=== build/app/outputs/flutter-apk ==="
           ls -la build/app/outputs/flutter-apk || true
-          echo "=== Gradle default output folder ==="
-          ls -la android/app/build/outputs/apk/release || true
+          echo "=== find any apk ==="
+          find build -type f -name "*.apk" -maxdepth 6 || true
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
           path: |
-            android/app/build/outputs/apk/release/*.apk
+            build/app/outputs/flutter-apk/app-release.apk
             build/app/outputs/flutter-apk/*.apk
+            build/**/**/*.apk
