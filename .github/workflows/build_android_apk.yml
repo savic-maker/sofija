@@ -7,12 +7,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    env:
-      # Hard CI fix for Gradle "Already watching path" / VFS watcher issues
-      GRADLE_OPTS: "-Dorg.gradle.vfs.watch=false -Dorg.gradle.unsafe.watch-fs=false"
-      # Less noise / faster & more stable in CI
-      CI: "true"
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,70 +14,75 @@ jobs:
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
-          distribution: "temurin"
+          distribution: temurin
           java-version: "17"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: "stable"
+          channel: stable
           cache: true
 
       - name: Verify project structure
         run: |
-          echo "=== Repo root listing ==="
+          set -e
           ls -la
-          echo "=== Check pubspec.yaml ==="
-          test -f pubspec.yaml || (echo "pubspec.yaml NOT FOUND" && exit 1)
-          echo "=== Flutter version ==="
-          flutter --version
-
-      - name: Ensure Gradle watcher is disabled (android/gradle.properties)
-        run: |
-          mkdir -p android
-          if [ ! -f android/gradle.properties ]; then
-            echo "Creating android/gradle.properties"
-            touch android/gradle.properties
-          fi
-
-          # Append only if missing
-          grep -q "org.gradle.vfs.watch=false" android/gradle.properties || echo "org.gradle.vfs.watch=false" >> android/gradle.properties
-          grep -q "org.gradle.unsafe.watch-fs=false" android/gradle.properties || echo "org.gradle.unsafe.watch-fs=false" >> android/gradle.properties
-
-          # CI stability (optional but recommended)
-          grep -q "org.gradle.daemon=false" android/gradle.properties || echo "org.gradle.daemon=false" >> android/gradle.properties
-          grep -q "org.gradle.parallel=false" android/gradle.properties || echo "org.gradle.parallel=false" >> android/gradle.properties
-          grep -q "org.gradle.caching=false" android/gradle.properties || echo "org.gradle.caching=false" >> android/gradle.properties
-
-          echo "=== android/gradle.properties ==="
-          cat android/gradle.properties
+          test -f pubspec.yaml
 
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Generate app icons (if configured)
+      # Ako nemaš ikonice/splash assete u repu, ova 2 koraka mogu da failuju.
+      # Ako si ih sredio – ostavi. Ako opet pravi problem – privremeno komentariši ova 2 koraka.
+      - name: Generate app icons
         run: flutter pub run flutter_launcher_icons:main
 
-      - name: Generate native splash (if configured)
+      - name: Generate native splash
         run: flutter pub run flutter_native_splash:create
 
-      - name: Build release APK
+      - name: Prepare Android local.properties and disable Gradle watcher
         run: |
-          flutter clean
-          flutter build apk --release --verbose --android-skip-build-dependency-validation
+          set -e
+          FLUTTER_ROOT="$(dirname "$(dirname "$(which flutter)")")"
+          echo "Detected FLUTTER_ROOT=$FLUTTER_ROOT"
+
+          mkdir -p android
+          # local.properties je potreban Gradle-u da zna gde je Flutter SDK
+          cat > android/local.properties <<EOF
+flutter.sdk=$FLUTTER_ROOT
+sdk.dir=$ANDROID_SDK_ROOT
+EOF
+
+          # Isključi Gradle file system watcher (rešava "Already watching path...")
+          mkdir -p android
+          if [ -f android/gradle.properties ]; then
+            grep -q "org.gradle.vfs.watch" android/gradle.properties || echo "org.gradle.vfs.watch=false" >> android/gradle.properties
+          else
+            echo "org.gradle.vfs.watch=false" > android/gradle.properties
+          fi
+
+      - name: Build release APK (Gradle)
+        run: |
+          set -e
+          cd android
+          ./gradlew --version
+          ./gradlew clean
+          ./gradlew :app:assembleRelease --stacktrace
 
       - name: Locate APK (debug)
         run: |
-          echo "=== Find APKs ==="
-          find . -type f -name "*.apk" -maxdepth 8 -print || true
-          echo "=== Expected default path listing ==="
+          set -e
+          echo "=== APK candidates ==="
+          find . -type f -name "*.apk" -print || true
+          echo "=== Flutter default output folder (if exists) ==="
           ls -la build/app/outputs/flutter-apk || true
+          echo "=== Gradle default output folder ==="
+          ls -la android/app/build/outputs/apk/release || true
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
           path: |
-            build/**/outputs/**/*.apk
-            build/**/*.apk
-          if-no-files-found: error
+            android/app/build/outputs/apk/release/*.apk
+            build/app/outputs/flutter-apk/*.apk
