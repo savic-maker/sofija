@@ -1,56 +1,63 @@
-import java.util.Properties
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-val localProperties = Properties()
-val localPropertiesFile = rootProject.file("local.properties")
-if (localPropertiesFile.exists()) {
-    localPropertiesFile.inputStream().use { localProperties.load(it) }
-}
-
 android {
-    namespace = "com.savicmaker.sofijatracker"
-    // Plugins used by this app require a newer compileSdk.
+    namespace = "com.sofija.tracker"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.savicmaker.sofijatracker"
+        applicationId = "com.sofija.tracker"
         minSdk = 21
         targetSdk = 36
+
         versionCode = 1
         versionName = "1.0.0"
+
+        // Needed sometimes when you have many deps
         multiDexEnabled = true
     }
 
+    buildTypes {
+        release {
+            // Keep it simple & stable in CI
+            isMinifyEnabled = false
+            isShrinkResources = false
+
+            // Default proguard config (won't run since minify=false, but harmless)
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+        debug {
+            isMinifyEnabled = false
+            isShrinkResources = false
+        }
+    }
+
     compileOptions {
+        // Java 17 (matches GitHub Actions Java setup)
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+
+        // Required by flutter_local_notifications and some modern libs
         isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
         jvmTarget = "17"
     }
-
-    // (multiDexEnabled is configured in defaultConfig above)
-
-    buildTypes {
-        release {
-            // For production you should configure signingConfig.
-            isMinifyEnabled = false
-            isShrinkResources = false
-        }
-        debug {
-            isMinifyEnabled = false
-        }
-    }
 }
 
 dependencies {
+    // Core desugaring required when enabled above
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
-    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
+
+    // Basic AndroidX (safe defaults)
+    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("com.google.android.material:material:1.12.0")
 }
