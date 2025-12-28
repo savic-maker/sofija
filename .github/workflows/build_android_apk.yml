@@ -7,6 +7,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      # Hard CI fix for Gradle "Already watching path" / VFS watcher issues
+      GRADLE_OPTS: "-Dorg.gradle.vfs.watch=false -Dorg.gradle.unsafe.watch-fs=false"
+      # Less noise / faster & more stable in CI
+      CI: "true"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -14,43 +20,66 @@ jobs:
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: "temurin"
+          java-version: "17"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: "stable"
           cache: true
 
-      - name: Verify project root
+      - name: Verify project structure
         run: |
+          echo "=== Repo root listing ==="
           ls -la
+          echo "=== Check pubspec.yaml ==="
           test -f pubspec.yaml || (echo "pubspec.yaml NOT FOUND" && exit 1)
+          echo "=== Flutter version ==="
+          flutter --version
+
+      - name: Ensure Gradle watcher is disabled (android/gradle.properties)
+        run: |
+          mkdir -p android
+          if [ ! -f android/gradle.properties ]; then
+            echo "Creating android/gradle.properties"
+            touch android/gradle.properties
+          fi
+
+          # Append only if missing
+          grep -q "org.gradle.vfs.watch=false" android/gradle.properties || echo "org.gradle.vfs.watch=false" >> android/gradle.properties
+          grep -q "org.gradle.unsafe.watch-fs=false" android/gradle.properties || echo "org.gradle.unsafe.watch-fs=false" >> android/gradle.properties
+
+          # CI stability (optional but recommended)
+          grep -q "org.gradle.daemon=false" android/gradle.properties || echo "org.gradle.daemon=false" >> android/gradle.properties
+          grep -q "org.gradle.parallel=false" android/gradle.properties || echo "org.gradle.parallel=false" >> android/gradle.properties
+          grep -q "org.gradle.caching=false" android/gradle.properties || echo "org.gradle.caching=false" >> android/gradle.properties
+
+          echo "=== android/gradle.properties ==="
+          cat android/gradle.properties
 
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Generate app icons
+      - name: Generate app icons (if configured)
         run: flutter pub run flutter_launcher_icons:main
 
-      - name: Generate native splash
+      - name: Generate native splash (if configured)
         run: flutter pub run flutter_native_splash:create
 
-      - name: Build release APK (verbose)
+      - name: Build release APK
         run: |
           flutter clean
-          flutter build apk --release --verbose
+          flutter build apk --release --verbose --android-skip-build-dependency-validation
 
-      - name: List outputs (debug)
-        if: always()
+      - name: Locate APK (debug)
         run: |
-          echo "=== build/app/outputs ==="
-          ls -R build/app/outputs || true
-          echo "=== all apks ==="
-          find build -type f -name "*.apk" -print || true
+          echo "=== Find APKs ==="
+          find . -type f -name "*.apk" -maxdepth 8 -print || true
+          echo "=== Expected default path listing ==="
+          ls -la build/app/outputs/flutter-apk || true
 
-      - name: Upload APK artifact (robust)
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
