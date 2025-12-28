@@ -23,13 +23,10 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Verify project structure
+      - name: Verify project root
         run: |
           ls -la
           test -f pubspec.yaml || (echo "pubspec.yaml NOT FOUND" && exit 1)
-
-      - name: Clean
-        run: flutter clean
 
       - name: Flutter pub get
         run: flutter pub get
@@ -41,18 +38,23 @@ jobs:
         run: flutter pub run flutter_native_splash:create
 
       - name: Build release APK (verbose)
-        run: flutter build apk --release -v
+        run: |
+          flutter clean
+          flutter build apk --release --verbose
 
-      - name: List APK outputs (debug)
+      - name: List outputs (debug)
         if: always()
         run: |
           echo "=== build/app/outputs ==="
-          find build/app/outputs -maxdepth 5 -type f || true
-          echo "=== flutter-apk folder ==="
-          ls -la build/app/outputs/flutter-apk || true
+          ls -R build/app/outputs || true
+          echo "=== all apks ==="
+          find build -type f -name "*.apk" -print || true
 
-      - name: Upload APK artifact
+      - name: Upload APK artifact (robust)
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
-          path: build/app/outputs/flutter-apk/*.apk
+          path: |
+            build/**/outputs/**/*.apk
+            build/**/*.apk
+          if-no-files-found: error
