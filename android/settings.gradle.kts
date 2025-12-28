@@ -1,23 +1,43 @@
 pluginManagement {
-    val flutterSdkPath = run {
-        val properties = java.util.Properties()
-        file("local.properties").inputStream().use { properties.load(it) }
-        properties.getProperty("flutter.sdk") ?: error("flutter.sdk not set in local.properties")
-    }
-
-    includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
-
     repositories {
         google()
         mavenCentral()
         gradlePluginPortal()
     }
+
+    plugins {
+        // Android Gradle Plugin
+        id("com.android.application") version "8.6.1"
+        id("com.android.library") version "8.6.1"
+
+        // Kotlin
+        id("org.jetbrains.kotlin.android") version "2.1.10"
+    }
 }
 
-plugins {
-    id("dev.flutter.flutter-plugin-loader") version "1.0.0"
-    id("com.android.application") version "8.5.2" apply false
-    id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
 }
 
+rootProject.name = "sofija_tracker"
 include(":app")
+
+// Flutter plugin loader (required by Flutter Android build)
+val flutterSdkPath = run {
+    val props = java.util.Properties()
+    val localPropsFile = file("local.properties")
+    require(localPropsFile.exists()) {
+        """
+        local.properties not found in android/.
+        In CI you must create it with flutter.sdk=<path-to-flutter-sdk>.
+        """.trimIndent()
+    }
+    localPropsFile.inputStream().use { props.load(it) }
+    requireNotNull(props.getProperty("flutter.sdk")) { "flutter.sdk not set in local.properties" }
+}
+
+apply(from = "$flutterSdkPath/packages/flutter_tools/gradle/app_plugin_loader.gradle")
