@@ -15,7 +15,7 @@ val flutterSdkPath = localProperties.getProperty("flutter.sdk")
     ?: error("flutter.sdk not set in local.properties")
 
 pluginManagement {
-    // This replaces the old imperative apply(from=.../app_plugin_loader.gradle)
+    // Required by Flutter: replaces the old imperative apply(from=.../app_plugin_loader.gradle)
     includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
 
     repositories {
@@ -29,10 +29,12 @@ plugins {
     // Flutter plugin loader (required by Flutter Android build)
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
 
-    // Keep your existing versions for now (we can align them later if needed)
-    id("com.android.application") version "8.6.1" apply false
-    id("com.android.library") version "8.6.1" apply false
-    id("org.jetbrains.kotlin.android") version "2.1.10" apply false
+    // Android Gradle Plugin (AGP)
+    id("com.android.application") version "8.11.1" apply false
+    id("com.android.library") version "8.11.1" apply false
+
+    // Kotlin
+    id("org.jetbrains.kotlin.android") version "2.2.20" apply false
 }
 
 dependencyResolutionManagement {
